@@ -9,7 +9,7 @@
 int main() {
 	int sockfd, len, frames[100], n, p, ack;
 	struct sockaddr_in servaddr, cliaddr;
-	sockfd = socket (AF_INET, SOCK_DGRAM, 0);
+	sockfd = socket(AF_INET, SOCK_DGRAM, 0);
 	printf("\nwaiting for client...\n");
 	memset(&servaddr, 0, sizeof(servaddr));
 	memset(&cliaddr, 0, sizeof(cliaddr));

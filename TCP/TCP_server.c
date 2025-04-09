@@ -12,7 +12,7 @@ int main() {
     struct sockaddr_in client, server;
     int sockfd, n, confd, bindsts, lstnsts; 
     char rBuf[100] = "", sBuf[100] = "";
-    sockfd = socket(AF_INET, SOCK_STREAM, 0); 
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd == -1) {
         printf("socket creation failed...\n");
         exit(0); 
@@ -41,7 +41,7 @@ int main() {
     while(1) {
         n = sizeof(client); 
         recv(confd, rBuf, sizeof(rBuf), 0);
-        printf("\nClient: %s", rBuf); 
+        printf("\nClient: %s", rBuf);
         if(strcmp(rBuf, "end") == 0) 
             break;
         printf("\nServer: "); 

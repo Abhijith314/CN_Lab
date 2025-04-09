@@ -1,58 +1,69 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <netinet/in.h>
-#include <sys/time.h>
-#include <sys/wait.h>
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
-int main()
-{
-    int c_sock;
-    c_sock = socket(AF_INET, SOCK_STREAM, 0);
-    struct sockaddr_in client;
-    memset(&client, 0, sizeof(client));
-    client.sin_family = AF_INET;
-    client.sin_port = htons(9009);
-    client.sin_addr.s_addr = inet_addr("127.0.0.1");
-    if (connect(c_sock, (struct sockaddr *)&client, sizeof(client)) == -1)
-    {
-        printf("Connection failed");
-        return 0;
+
+#define SERVER_IP "127.0.0.1"
+#define PORT 9060
+#define FRAME_SIZE 20
+
+void send_ack(int sock, int frame_no) {
+    char ack[FRAME_SIZE];
+    snprintf(ack, sizeof(ack), "ACK-%d", frame_no);
+    printf("Sending ACK: %s\n", ack);
+    write(sock, ack, strlen(ack) + 1);
+}
+
+int main() {
+    int client_sock;
+    struct sockaddr_in server_addr;
+
+    client_sock = socket(AF_INET, SOCK_STREAM, 0);
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(PORT);
+    server_addr.sin_addr.s_addr = inet_addr(SERVER_IP);
+
+    connect(client_sock, (struct sockaddr*)&server_addr, sizeof(server_addr));
+    printf("Connected to server! Ready to receive frames.\n\n");
+
+    char frame[FRAME_SIZE];
+    int expected_frame = 0;
+
+    // Optional: Simulate loss for a specific frame
+    int loss_frame_no = 2;
+    int loss_simulated = 0;
+
+    while (1) {
+        memset(frame, 0, sizeof(frame));
+
+        int bytes_read = read(client_sock, frame, sizeof(frame));
+        if (bytes_read <= 0) {
+            break;
+        }
+
+        printf("Received: %s\n", frame);
+
+        int frame_no;
+        sscanf(frame, "Frame-%d", &frame_no);
+
+        if (frame_no == expected_frame) {
+            if (frame_no == loss_frame_no && !loss_simulated) {
+                printf("Simulating ACK loss for frame-%d! Not sending ACK.\n\n", frame_no);
+                loss_simulated = 1; // Ensure loss happens only once
+                continue;
+            }
+
+            send_ack(client_sock, frame_no);
+            expected_frame++;
+        } else {
+            printf("Out of order frame! Expected: %d, Got: %d. Discarding.\n\n", expected_frame, frame_no);
+        }
     }
-    printf("\n\tClient -with individual acknowledgement scheme\n\n");
-    char msg1[50] = "akwnowledgementof-";
-    char msg2[50];
-    char buff[100];
-    int flag = 1, flg = 1;
-    for (int i = 0; i <= 9; i++)
-    {
-        flg = 1;
-        bzero(buff, sizeof(buff));
-        bzero(msg2, sizeof(msg2));
-        if (i == 8 && flag == 1)
-        {
-            printf("here\n");
-            flag = 0;
-            read(c_sock, buff, sizeof(buff));
-        }
-        int n = read(c_sock, buff, sizeof(buff));
-        if (buff[strlen(buff) - 1] != i + '0')
-        {
-            printf("Discarded as out of order \n");
-            i--;
-        }
-        else
-        {
-            printf("Message received from server : %s \n", buff);
-            printf("Aknowledgement sent for message \n");
-            strcpy(msg2, msg1);
-            msg2[strlen(msg2)] = i + '0';
-            write(c_sock, msg2, sizeof(msg2));
-        }
-    }
-    close(c_sock);
+
+
+    printf("All frames received. Closing connection.\n");
+
+    close(client_sock);
     return 0;
 }

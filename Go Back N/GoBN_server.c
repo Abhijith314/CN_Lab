@@ -1,120 +1,102 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <sys/time.h>
-#include <netinet/in.h>
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
-#include <fcntl.h>
-int main()
-{
-    int s_sock, c_sock;
-    s_sock = socket(AF_INET, SOCK_STREAM, 0);
-    struct sockaddr_in server, other;
-    memset(&server, 0, sizeof(server));
-    memset(&other, 0, sizeof(other));
-    server.sin_family = AF_INET;
-    server.sin_port = htons(9009);
-    server.sin_addr.s_addr = INADDR_ANY;
-    socklen_t add;
-    if (bind(s_sock, (struct sockaddr *)&server, sizeof(server)) == -1)
-    {
-        printf("Binding failed\n");
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/time.h>
+
+#define PORT 9060
+#define WINDOW_SIZE 2   // Easy to change window size
+#define TOTAL_FRAMES 5 // Total messages to send
+#define FRAME_SIZE 20   // Size of each frame
+
+void send_frame(int sock, int frame_no) {
+    char frame[FRAME_SIZE];
+    snprintf(frame, sizeof(frame), "Frame-%d", frame_no);
+    printf("Sending: %s\n", frame);
+    write(sock, frame, strlen(frame) + 1);
+}
+
+int wait_for_ack(int sock, int frame_no) {
+    char ack[FRAME_SIZE];
+    fd_set read_fds;
+    struct timeval timeout;
+
+    FD_ZERO(&read_fds);
+    FD_SET(sock, &read_fds);
+
+    timeout.tv_sec = 3; // Timeout in seconds
+    timeout.tv_usec = 0;
+
+    int retval = select(sock + 1, &read_fds, NULL, NULL, &timeout);
+
+    if (retval == -1) {
+        perror("select()");
         return 0;
+    } else if (retval == 0) {
+        printf("Timeout! No ACK for frame-%d\n", frame_no);
+        return 0;
+    } else {
+        read(sock, ack, sizeof(ack));
+        printf("Received ACK: %s\n", ack);
+        return 1;
     }
-    printf("\tServer Up\n Go back n (n=3) used to send 10 messages \n\n");
-    listen(s_sock, 10);
-    add = sizeof(other);
-    c_sock = accept(s_sock, (struct sockaddr *)&other, &add);
-    time_t t1, t2;
-    char msg[50] = "server message :";
-    char buff[50];
-    int flag = 0;
-    fd_set set1, set2, set3;
-    struct timeval timeout1, timeout2, timeout3;
-    int rv1, rv2, rv3;
-    int i = -1;
-qq:
-    i = i + 1;
-    bzero(buff, sizeof(buff));
-    char buff2[60];
-    bzero(buff2, sizeof(buff2));
-    strcpy(buff2, "server message :");
-    buff2[strlen(buff2)] = i + '0';
-    buff2[strlen(buff2)] = '\0';
-    printf("Message sent to client :%s \n", buff2);
-    write(c_sock, buff2, sizeof(buff2));
-    usleep(1000);
-    i = i + 1;
-    bzero(buff2, sizeof(buff2));
-    strcpy(buff2, msg);
-    buff2[strlen(msg)] = i + '0';
-    printf("Message sent to client :%s \n", buff2);
-    write(c_sock, buff2, sizeof(buff2));
-    i = i + 1;
-    usleep(1000);
-qqq:
-    bzero(buff2, sizeof(buff2));
-    strcpy(buff2, msg);
-    buff2[strlen(msg)] = i + '0';
-    printf("Message sent to client :%s \n", buff2);
-    write(c_sock, buff2, sizeof(buff2));
-    FD_ZERO(&set1);
-    FD_SET(c_sock, &set1);
-    timeout1.tv_sec = 2;
-    timeout1.tv_usec = 0;
-    rv1 = select(c_sock + 1, &set1, NULL, NULL, &timeout1);
-    if (rv1 == -1)
-        perror("select error ");
-    else if (rv1 == 0)
-    {
-        printf("Going back from %d:timeout \n", i);
-        i = i - 3;
-        goto qq;
+}
+
+int main() {
+    int server_sock, client_sock;
+    struct sockaddr_in server_addr, client_addr;
+    socklen_t addr_size;
+
+    server_sock = socket(AF_INET, SOCK_STREAM, 0);
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(PORT);
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+
+    bind(server_sock, (struct sockaddr*)&server_addr, sizeof(server_addr));
+    listen(server_sock, 1);
+
+    printf("Server is up, waiting for connection...\n");
+
+    addr_size = sizeof(client_addr);
+    client_sock = accept(server_sock, (struct sockaddr*)&client_addr, &addr_size);
+
+    printf("Client connected! Starting Go-Back-N Protocol (Window Size = %d)\n\n", WINDOW_SIZE);
+
+    int next_frame = 0;
+
+    while (next_frame < TOTAL_FRAMES) {
+        int sent_frames = 0;
+
+        // Send window of frames
+        for (int i = 0; i < WINDOW_SIZE && next_frame + i < TOTAL_FRAMES; i++) {
+            send_frame(client_sock, next_frame + i);
+            sent_frames++;
+        }
+
+        // Wait for ACKs for each sent frame
+        int acks_received = 0;
+
+        for (int i = 0; i < sent_frames; i++) {
+            int ack = wait_for_ack(client_sock, next_frame + i);
+            if (!ack) {
+                printf("Go-Back to frame-%d\n\n", next_frame + i);
+                next_frame += i;  // Go back to the failed frame
+                break;
+            }
+            acks_received++;
+        }
+
+        if (acks_received == sent_frames) {
+            next_frame += sent_frames; // Move window forward
+        }
     }
-    else
-    {
-        read(c_sock, buff, sizeof(buff));
-        printf("Message from Client: %s\n", buff);
-        i++;
-        if (i <= 9)
-            goto qqq;
-    }
-qq2:
-    FD_ZERO(&set2);
-    FD_SET(c_sock, &set2);
-    timeout2.tv_sec = 3;
-    timeout2.tv_usec = 0;
-    rv2 = select(c_sock + 1, &set2, NULL, NULL, &timeout2);
-    if (rv2 == -1)
-        perror("select error "); // an error accured
-    else if (rv2 == 0)
-    {
-        printf("Going back from %d:timeout on last 2\n", i - 1);
-        i = i - 2;
-        bzero(buff2, sizeof(buff2));
-        strcpy(buff2, msg);
-        buff2[strlen(buff2)] = i + '0';
-        write(c_sock, buff2, sizeof(buff2));
-        usleep(1000);
-        bzero(buff2, sizeof(buff2));
-        i++;
-        strcpy(buff2, msg);
-        buff2[strlen(buff2)] = i + '0';
-        write(c_sock, buff2, sizeof(buff2));
-        goto qq2;
-    }
-    else
-    {
-        read(c_sock, buff, sizeof(buff));
-        printf("Message from Client: %s\n", buff);
-        bzero(buff, sizeof(buff));
-        read(c_sock, buff, sizeof(buff));
-        printf("Message from Client: %s\n", buff);
-    }
-    close(c_sock);
-    close(s_sock);
+
+    printf("All frames sent successfully!\n");
+
+    close(client_sock);
+    close(server_sock);
     return 0;
 }
