@@ -1,3 +1,4 @@
+// SelectiveR_client_short.c
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,7 +11,7 @@
 #define TOTAL_FRAMES 5
 
 int is_faulty() {
-    return (rand() % 4 > 2);
+    return (rand() % 4 > 2); // 25% chance to be faulty
 }
 
 int main() {
@@ -30,6 +31,7 @@ int main() {
 
     int acked_frames = 0;
     char recv_buffer[100], ack_buffer[50];
+
     while (acked_frames < TOTAL_FRAMES) {
         bzero(recv_buffer, sizeof(recv_buffer));
         int n = read(client_sock, recv_buffer, sizeof(recv_buffer));
@@ -49,6 +51,7 @@ int main() {
 
         write(client_sock, ack_buffer, sizeof(ack_buffer));
     }
+
     printf("All frames received successfully.\n");
     close(client_sock);
     return 0;
