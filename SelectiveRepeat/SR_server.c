@@ -1,3 +1,4 @@
+// SElectiveR_server_short.c
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,7 +8,7 @@
 
 #define PORT 9009
 #define TOTAL_FRAMES 5
-#define WINDOW_SIZE 3
+#define WINDOW_SIZE 2
 
 void resend_frame(int frame, int client_sock) {
     char buffer[60];
@@ -28,6 +29,7 @@ int main() {
         perror("Bind failed");
         return 1;
     }
+
     listen(server_sock, 5);
     printf("Server is running... Selective Repeat ARQ\n");
 
@@ -40,6 +42,7 @@ int main() {
 
     int total_acked = 0;
     char recv_buffer[50];
+
     while (total_acked < TOTAL_FRAMES) {
         int base = total_acked;
         for (int i = base; i < base + WINDOW_SIZE && i < TOTAL_FRAMES; i++) {
@@ -49,6 +52,7 @@ int main() {
             write(client_sock, send_buffer, sizeof(send_buffer));
             usleep(1000);
         }
+
         for (int i = base; i < base + WINDOW_SIZE && i < TOTAL_FRAMES; i++) {
             fd_set readfds;
             struct timeval timeout = {2, 0};
@@ -76,6 +80,7 @@ int main() {
             }
         }
     }
+
     printf("All frames sent and acknowledged successfully.\n");
     close(client_sock);
     close(server_sock);
