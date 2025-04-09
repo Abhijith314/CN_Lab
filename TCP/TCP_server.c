@@ -20,7 +20,7 @@ int main() {
     else
         printf("Socket successfully created..\n");
     server.sin_family = AF_INET;
-    server.sin_port = 6060; 
+    server.sin_port = 6061; 
     server.sin_addr.s_addr = inet_addr("127.0.0.1");
     bindsts = bind(sockfd, (struct sockaddr *)&server, sizeof(server)); 
     if (bindsts != 0) { 
@@ -42,13 +42,15 @@ int main() {
         n = sizeof(client); 
         recv(confd, rBuf, sizeof(rBuf), 0);
         printf("\nClient: %s", rBuf);
-        if(strcmp(rBuf, "end") == 0) 
+        if(strcmp(sBuf, "end\n") == 0 || strcmp(sBuf, "end") == 0) {
             break;
+        }
         printf("\nServer: "); 
-        gets(sBuf);
+        fgets(sBuf, sizeof(sBuf), stdin);
         send(confd, sBuf, sizeof(sBuf), 0); 
-        if(strcmp(sBuf, "end") == 0) 
+        if(strcmp(rBuf, "end\n") == 0 || strcmp(rBuf, "end") == 0) {
             break;
+        }
         printf("\n"); 
     }
     close(confd); 
